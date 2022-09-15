@@ -61,19 +61,31 @@ except ImportError:
     import selectors
     import termios
 
-    def posix_timed_input(timeout, prompt, newline):
-        echo(prompt)
-        sel = selectors.DefaultSelector()
-        sel.register(sys.stdin, selectors.EVENT_READ)
-        events = sel.select(timeout)
+    # first, check if tty is available
+    try:
+        termios.tcgetattr(sys.stdin)
+        is_tty = True
+    except termios.error:
+        is_tty = False
 
-        if events:
-            key, _ = events[0]
-            return key.fileobj.readline().rstrip(LF)
-        else:
-            if newline:
-                echo(LF)
-            termios.tcflush(sys.stdin, termios.TCIFLUSH)
+    if is_tty:
+        def posix_timed_input(timeout, prompt, newline):
+            echo(prompt)
+            sel = selectors.DefaultSelector()
+            sel.register(sys.stdin, selectors.EVENT_READ)
+            events = sel.select(timeout)
+
+            if events:
+                key, _ = events[0]
+                return key.fileobj.readline().rstrip(LF)
+            else:
+                if newline:
+                    echo(LF)
+                termios.tcflush(sys.stdin, termios.TCIFLUSH)
+                raise TimeoutOccurred
+    else:
+        def posix_timed_input(timeout, prompt, newline):
+            time.sleep(timeout)
             raise TimeoutOccurred
 
     _timed_input = posix_timed_input
